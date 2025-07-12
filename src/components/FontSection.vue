@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, reactive, onMounted } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 
 interface Props {
   modelValue: Record<string, string>;
@@ -11,29 +12,37 @@ interface Emits {
   (e: 'update:modelValue', value: Record<string, string>): void;
 }
 
+interface FontSetting {
+  key: string;
+  label: string;
+  description: string;
+  input_type: string;
+}
+
+interface FontValue {
+  size: string;
+  family: string;
+}
+
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-// フォント設定の定義
-const fontSettings = [
-  { key: 'DefaultFamily', label: '標準フォント', description: '標準のフォント名', inputType: 'familyOnly' },
-  { key: 'Control', label: 'コントロールフォント', description: '標準のコントロールのフォントサイズ', inputType: 'sizeOnly' },
-  { key: 'EditControl', label: 'エディットコントロール', description: 'エディットコントロールのフォント（等幅推奨）', inputType: 'both' },
-  { key: 'PreviewTime', label: 'プレビュー時間表示', description: 'プレビュー時間表示のフォントサイズ', inputType: 'sizeOnly' },
-  { key: 'LayerObject', label: 'レイヤー・オブジェクト編集', description: 'レイヤー・オブジェクト編集部分のフォントサイズ', inputType: 'sizeOnly' },
-  { key: 'TimeGauge', label: 'フレーム時間ゲージ', description: 'フレーム時間ゲージのフォントサイズ', inputType: 'sizeOnly' },
-  { key: 'Footer', label: 'フッター', description: 'フッターのフォントサイズ', inputType: 'sizeOnly' },
-  { key: 'TextEdit', label: 'テキスト編集', description: 'テキスト編集のフォント（等幅推奨）', inputType: 'both' },
-  { key: 'Log', label: 'ログ', description: 'ログのフォント（等幅推奨）', inputType: 'both' }
-];
-
+// フォント設定をバックエンドから取得
+const fontSettings = ref<FontSetting[]>([]);
 const searchQuery = ref('');
 const fontFamilyModels = reactive<Record<string, string>>({});
 
-onMounted(() => {
-  fontSettings.forEach(setting => {
-    fontFamilyModels[setting.key] = parseFontValue(props.modelValue[setting.key] || '').family;
-  });
+onMounted(async () => {
+  try {
+    fontSettings.value = await invoke('get_font_settings');
+    
+    for (const setting of fontSettings.value) {
+      const parsed = await parseFontValue(props.modelValue[setting.key] || '');
+      fontFamilyModels[setting.key] = parsed.family;
+    }
+  } catch (error) {
+    console.error('フォント設定の取得に失敗しました:', error);
+  }
 });
 
 const filteredFontFamilies = computed(() => {
@@ -51,34 +60,31 @@ function updateValue(key: string, value: string) {
   emit('update:modelValue', newValue);
 }
 
-function onFontFamilyChange(key: string) {
-  const current = parseFontValue(props.modelValue[key] || '');
-  updateValue(key, formatFontValue(current.size, fontFamilyModels[key], key));
+async function onFontFamilyChange(key: string) {
+  const current = await parseFontValue(props.modelValue[key] || '');
+  const formatted = await invoke('format_font_value', {
+    size: current.size,
+    family: fontFamilyModels[key],
+    key: key
+  });
+  updateValue(key, formatted as string);
 }
 
-function parseFontValue(value: string): { size: string; family: string } {
-  const parts = value.split(',');
-  return {
-    size: parts[0] || '',
-    family: parts[1] || ''
-  };
+async function parseFontValue(value: string): Promise<FontValue> {
+  try {
+    return await invoke('parse_font_value', { value });
+  } catch (error) {
+    console.error('フォント値の解析に失敗しました:', error);
+    return { size: '', family: '' };
+  }
 }
 
-function formatFontValue(size: string, family: string, key: string): string {
-  const setting = fontSettings.find(s => s.key === key);
-  if (!setting) return '';
-  
-  const cleanFamily = family.split(',')[0].trim();
-  
-  switch (setting.inputType) {
-    case 'familyOnly':
-      return cleanFamily;
-    case 'sizeOnly':
-      return size;
-    case 'both':
-      return cleanFamily ? `${size},${cleanFamily}` : size;
-    default:
-      return size;
+async function formatFontValue(size: string, family: string, key: string): Promise<string> {
+  try {
+    return await invoke('format_font_value', { size, family, key }) as string;
+  } catch (error) {
+    console.error('フォント値のフォーマットに失敗しました:', error);
+    return size;
   }
 }
 
@@ -108,15 +114,19 @@ function resetItem(key: string) {
         
         <div class="setting-controls">
           <!-- フォントサイズ入力 -->
-          <div class="input-group" v-if="setting.inputType !== 'familyOnly'">
+          <div class="input-group" v-if="setting.input_type !== 'familyOnly'">
             <label :for="`${setting.key}-size`" class="input-label">サイズ</label>
             <input
               :id="`${setting.key}-size`"
               type="number"
-              :value="parseFontValue(props.modelValue[setting.key] || '').size"
-              @input="(e) => {
-                const current = parseFontValue(props.modelValue[setting.key] || '');
-                updateValue(setting.key, formatFontValue((e.target as HTMLInputElement).value, current.family, setting.key));
+              :value="(async () => {
+                const parsed = await parseFontValue(props.modelValue[setting.key] || '');
+                return parsed.size;
+              })()"
+              @input="async (e) => {
+                const current = await parseFontValue(props.modelValue[setting.key] || '');
+                const formatted = await formatFontValue((e.target as HTMLInputElement).value, current.family, setting.key);
+                updateValue(setting.key, formatted);
               }"
               min="8"
               max="72"
@@ -126,7 +136,7 @@ function resetItem(key: string) {
           </div>
 
           <!-- フォントファミリー選択 -->
-          <div class="input-group" v-if="setting.inputType !== 'sizeOnly'">
+          <div class="input-group" v-if="setting.input_type !== 'sizeOnly'">
             <label :for="`${setting.key}-family`" class="input-label">フォント</label>
             <input
               v-model="searchQuery"

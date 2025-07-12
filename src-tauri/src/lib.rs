@@ -11,6 +11,20 @@ pub struct StyleConfig {
     pub format: HashMap<String, String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FontSetting {
+    pub key: String,
+    pub label: String,
+    pub description: String,
+    pub input_type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FontValue {
+    pub size: String,
+    pub family: String,
+}
+
 #[tauri::command]
 fn load_style_config(file_path: String) -> Result<StyleConfig, String> {
     let content = fs::read_to_string(&file_path)
@@ -91,6 +105,100 @@ fn get_system_fonts() -> Result<Vec<String>, String> {
     }
     fonts.sort();
     Ok(fonts)
+}
+
+#[tauri::command]
+fn get_font_settings() -> Vec<FontSetting> {
+    vec![
+        FontSetting {
+            key: "DefaultFamily".to_string(),
+            label: "標準フォント".to_string(),
+            description: "標準のフォント名".to_string(),
+            input_type: "familyOnly".to_string(),
+        },
+        FontSetting {
+            key: "Control".to_string(),
+            label: "コントロールフォント".to_string(),
+            description: "標準のコントロールのフォントサイズ".to_string(),
+            input_type: "sizeOnly".to_string(),
+        },
+        FontSetting {
+            key: "EditControl".to_string(),
+            label: "エディットコントロール".to_string(),
+            description: "エディットコントロールのフォント（等幅推奨）".to_string(),
+            input_type: "both".to_string(),
+        },
+        FontSetting {
+            key: "PreviewTime".to_string(),
+            label: "プレビュー時間表示".to_string(),
+            description: "プレビュー時間表示のフォントサイズ".to_string(),
+            input_type: "sizeOnly".to_string(),
+        },
+        FontSetting {
+            key: "LayerObject".to_string(),
+            label: "レイヤー・オブジェクト編集".to_string(),
+            description: "レイヤー・オブジェクト編集部分のフォントサイズ".to_string(),
+            input_type: "sizeOnly".to_string(),
+        },
+        FontSetting {
+            key: "TimeGauge".to_string(),
+            label: "フレーム時間ゲージ".to_string(),
+            description: "フレーム時間ゲージのフォントサイズ".to_string(),
+            input_type: "sizeOnly".to_string(),
+        },
+        FontSetting {
+            key: "Footer".to_string(),
+            label: "フッター".to_string(),
+            description: "フッターのフォントサイズ".to_string(),
+            input_type: "sizeOnly".to_string(),
+        },
+        FontSetting {
+            key: "TextEdit".to_string(),
+            label: "テキスト編集".to_string(),
+            description: "テキスト編集のフォント（等幅推奨）".to_string(),
+            input_type: "both".to_string(),
+        },
+        FontSetting {
+            key: "Log".to_string(),
+            label: "ログ".to_string(),
+            description: "ログのフォント（等幅推奨）".to_string(),
+            input_type: "both".to_string(),
+        },
+    ]
+}
+
+#[tauri::command]
+fn parse_font_value(value: String) -> FontValue {
+    let parts: Vec<&str> = value.split(',').collect();
+    FontValue {
+        size: parts.get(0).unwrap_or(&"").to_string(),
+        family: parts.get(1).unwrap_or(&"").to_string(),
+    }
+}
+
+#[tauri::command]
+fn format_font_value(size: String, family: String, key: String) -> String {
+    let settings = get_font_settings();
+    let setting = settings.iter().find(|s| s.key == key);
+    
+    if let Some(setting) = setting {
+        let clean_family = family.split(',').next().unwrap_or("").trim();
+        
+        match setting.input_type.as_str() {
+            "familyOnly" => clean_family.to_string(),
+            "sizeOnly" => size,
+            "both" => {
+                if !clean_family.is_empty() {
+                    format!("{},{}", size, clean_family)
+                } else {
+                    size
+                }
+            }
+            _ => size,
+        }
+    } else {
+        size
+    }
 }
 
 fn parse_style_config(content: &str) -> Result<StyleConfig, String> {
@@ -195,7 +303,10 @@ pub fn run() {
             get_default_style_path,
             get_user_style_path,
             open_file_location,
-            get_system_fonts
+            get_system_fonts,
+            get_font_settings,
+            parse_font_value,
+            format_font_value
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
