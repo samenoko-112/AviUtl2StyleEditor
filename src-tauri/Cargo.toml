@@ -1,5 +1,5 @@
 [package]
-name = "aviutl-style-editor"
+name = "aviutl2-style-editor"
 version = "0.1.0"
 description = "AviUtl2 style.conf editor"
 authors = ["samenoko-112"]
