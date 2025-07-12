@@ -2,7 +2,7 @@
 name = "aviutl-style-editor"
 version = "0.1.0"
 description = "AviUtl2 style.conf editor"
-authors = ["you"]
+authors = ["samenoko-112"]
 license = ""
 repository = ""
 edition = "2021"
