@@ -16,15 +16,15 @@ const emit = defineEmits<Emits>();
 
 // フォント設定の定義
 const fontSettings = [
-  { key: 'DefaultFamily', label: '標準フォント', description: '標準のフォント名' },
-  { key: 'Control', label: 'コントロールフォント', description: '標準のコントロールのフォントサイズ' },
-  { key: 'EditControl', label: 'エディットコントロール', description: 'エディットコントロールのフォント（等幅推奨）' },
-  { key: 'PreviewTime', label: 'プレビュー時間表示', description: 'プレビュー時間表示のフォントサイズ' },
-  { key: 'LayerObject', label: 'レイヤー・オブジェクト編集', description: 'レイヤー・オブジェクト編集部分のフォントサイズ' },
-  { key: 'TimeGauge', label: 'フレーム時間ゲージ', description: 'フレーム時間ゲージのフォントサイズ' },
-  { key: 'Footer', label: 'フッター', description: 'フッターのフォントサイズ' },
-  { key: 'TextEdit', label: 'テキスト編集', description: 'テキスト編集のフォント（等幅推奨）' },
-  { key: 'Log', label: 'ログ', description: 'ログのフォント（等幅推奨）' }
+  { key: 'DefaultFamily', label: '標準フォント', description: '標準のフォント名', inputType: 'familyOnly' },
+  { key: 'Control', label: 'コントロールフォント', description: '標準のコントロールのフォントサイズ', inputType: 'sizeOnly' },
+  { key: 'EditControl', label: 'エディットコントロール', description: 'エディットコントロールのフォント（等幅推奨）', inputType: 'both' },
+  { key: 'PreviewTime', label: 'プレビュー時間表示', description: 'プレビュー時間表示のフォントサイズ', inputType: 'sizeOnly' },
+  { key: 'LayerObject', label: 'レイヤー・オブジェクト編集', description: 'レイヤー・オブジェクト編集部分のフォントサイズ', inputType: 'sizeOnly' },
+  { key: 'TimeGauge', label: 'フレーム時間ゲージ', description: 'フレーム時間ゲージのフォントサイズ', inputType: 'sizeOnly' },
+  { key: 'Footer', label: 'フッター', description: 'フッターのフォントサイズ', inputType: 'sizeOnly' },
+  { key: 'TextEdit', label: 'テキスト編集', description: 'テキスト編集のフォント（等幅推奨）', inputType: 'both' },
+  { key: 'Log', label: 'ログ', description: 'ログのフォント（等幅推奨）', inputType: 'both' }
 ];
 
 const searchQuery = ref('');
@@ -65,14 +65,21 @@ function parseFontValue(value: string): { size: string; family: string } {
 }
 
 function formatFontValue(size: string, family: string, key: string): string {
+  const setting = fontSettings.find(s => s.key === key);
+  if (!setting) return '';
+  
   const cleanFamily = family.split(',')[0].trim();
-  if (key === 'DefaultFamily') {
-    return cleanFamily;
+  
+  switch (setting.inputType) {
+    case 'familyOnly':
+      return cleanFamily;
+    case 'sizeOnly':
+      return size;
+    case 'both':
+      return cleanFamily ? `${size},${cleanFamily}` : size;
+    default:
+      return size;
   }
-  if (['EditControl', 'TextEdit', 'Log'].includes(key)) {
-    return cleanFamily ? `${size},${cleanFamily}` : size;
-  }
-  return size;
 }
 
 function resetItem(key: string) {
@@ -101,7 +108,7 @@ function resetItem(key: string) {
         
         <div class="setting-controls">
           <!-- フォントサイズ入力 -->
-          <div class="input-group">
+          <div class="input-group" v-if="setting.inputType !== 'familyOnly'">
             <label :for="`${setting.key}-size`" class="input-label">サイズ</label>
             <input
               :id="`${setting.key}-size`"
@@ -119,7 +126,7 @@ function resetItem(key: string) {
           </div>
 
           <!-- フォントファミリー選択 -->
-          <div class="input-group">
+          <div class="input-group" v-if="setting.inputType !== 'sizeOnly'">
             <label :for="`${setting.key}-family`" class="input-label">フォント</label>
             <input
               v-model="searchQuery"
@@ -202,7 +209,7 @@ function resetItem(key: string) {
 
 .setting-controls {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 15px;
   align-items: end;
 }
